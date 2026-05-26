@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Encryption Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .container > p {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .upload-section, .key-section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        input[type="number"] {
+            width: 200px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        .key-note {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin: 25px 0;
+            flex-wrap: wrap;
+        }
+        .btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+        .encrypt { background: #dc3545; color: white; }
+        .decrypt { background: #28a745; color: white; }
+        .reset { background: #ffc107; color: #333; }
+        .download { background: #007bff; color: white; }
+        .image-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        .image-box {
+            flex: 1;
+            text-align: center;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+        }
+        .image-box h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        canvas {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: #e9ecef;
+        }
+        .image-status {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+        .info {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e8f4f8;
+            border-left: 4px solid #007bff;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #0056b3;
+        }
+        @media (max-width: 768px) {
+            .image-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ Image Encryption Tool</h1>
+        <p>Encrypt and decrypt images using pixel manipulation with XOR encryption</p>
+
+        <div class="upload-section">
+            <label for="imageInput">📁 Select Image:</label>
+            <input type="file" id="imageInput" accept="image/jpeg, image/png, image/jpg">
+        </div>
+
+        <div class="key-section">
+            <label for="key">🔑 Encryption Key (1-255):</label>
+            <input type="number" id="key" min="1" max="255" value="50">
+            <p class="key-note">Remember this key! Same key encrypts and decrypts.</p>
+        </div>
+
+        <div class="button-group">
+            <button class="btn encrypt" onclick="encryptImage()">🔒 Encrypt Image</button>
+            <button class="btn decrypt" onclick="decryptImage()">🔓 Decrypt Image</button>
+            <button class="btn reset" onclick="resetImage()">🔄 Reset</button>
+            <button class="btn download" onclick="downloadImage()">💾 Download</button>
+        </div>
+
+        <div class="image-container">
+            <div class="image-box">
+                <h3>📷 Original Image</h3>
+                <canvas id="originalCanvas" width="400" height="300"></canvas>
+                <p class="image-status">Original image will appear here</p>
+            </div>
+            <div class="image-box">
+                <h3>🔐 Processed Image</h3>
+                <canvas id="processedCanvas" width="400" height="300"></canvas>
+                <p class="image-status">Encrypted/Decrypted image will appear here</p>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>📖 How it works:</strong> This tool uses XOR encryption on each pixel's RGB values.
+            Each color channel (Red, Green, Blue) is XORed with your key.
+            Since XOR is reversible, the SAME key encrypts AND decrypts the image.
+        </div>
+    </div>
+
+    <script>
+        let originalImageData = null;
+        let originalWidth = 0;
+        let originalHeight = 0;
+        let currentImageData = null;
+
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const originalCanvas = document.getElementById('originalCanvas');
+                        const originalCtx = originalCanvas.getContext('2d');
+                        
+                        originalCanvas.width = img.width;
+                        originalCanvas.height = img.height;
+                        originalWidth = img.width;
+                        originalHeight = img.height;
+                        
+                        originalCtx.drawImage(img, 0, 0, img.width, img.height);
+                        originalImageData = originalCtx.getImageData(0, 0, img.width, img.height);
+                        currentImageData = originalCtx.getImageData(0, 0, img.width, img.height);
+                        
+                        const processedCanvas = document.getElementById('processedCanvas');
+                        const processedCtx = processedCanvas.getContext('2d');
+                        processedCanvas.width = img.width;
+                        processedCanvas.height = img.height;
+                        processedCtx.putImageData(currentImageData, 0, 0);
+                        
+                        document.querySelector('.image-box:first-child .image-status').textContent = 
+                            'Image loaded: ' + img.width + ' x ' + img.height + ' pixels';
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function encryptImage() {
+            if (!originalImageData) {
+                alert('Please select an image first!');
+                return;
+            }
+            
+            const key = parseInt(document.getElementById('key').value);
+            if (isNaN(key) || key < 1 || key > 255) {
+                alert('Key must be between 1 and 255!');
+                return;
+            }
+            
+            const processedData = new ImageData(
+                new Uint8ClampedArray(originalImageData.data),
+                originalWidth,
+                originalHeight
+            );
+            
+            for (let i = 0; i < processedData.data.length; i += 4) {
+                processedData.data[i] = processedData.data[i] ^ key;
+                processedData.data[i + 1] = processedData.data[i + 1] ^ key;
+                processedData.data[i + 2] = processedData.data[i + 2] ^ key;
+            }
+            
+            currentImageData = processedData;
+            
+            const processedCanvas = document.getElementById('processedCanvas');
+            const processedCtx = processedCanvas.getContext('2d');
+            processedCanvas.width = originalWidth;
+            processedCanvas.height = originalHeight;
+            processedCtx.putImageData(currentImageData, 0, 0);
+            
+            document.querySelector('.image-box:last-child .image-status').textContent = 
+                'Image encrypted! Use same key to decrypt.';
+        }
+
+        function decryptImage() {
+            if (!originalImageData) {
+                alert('Please select an image first!');
+                return;
+            }
+            
+            const key = parseInt(document.getElementById('key').value);
+            if (isNaN(key) || key < 1 || key > 255) {
+                alert('Key must be between 1 and 255!');
+                return;
+            }
+            
+            const processedData = new ImageData(
+                new Uint8ClampedArray(originalImageData.data),
+                originalWidth,
+                originalHeight
+            );
+            
+            for (let i = 0; i < processedData.data.length; i += 4) {
+                processedData.data[i] = processedData.data[i] ^ key;
+                processedData.data[i + 1] = processedData.data[i + 1] ^ key;
+                processedData.data[i + 2] = processedData.data[i + 2] ^ key;
+            }
+            
+            currentImageData = processedData;
+            
+            const processedCanvas = document.getElementById('processedCanvas');
+            const processedCtx = processedCanvas.getContext('2d');
+            processedCanvas.width = originalWidth;
+            processedCanvas.height = originalHeight;
+            processedCtx.putImageData(currentImageData, 0, 0);
+            
+            document.querySelector('.image-box:last-child .image-status').textContent = 
+                'Image decrypted! Original image restored.';
+        }
+
+        function resetImage() {
+            if (!originalImageData) {
+                alert('Please select an image first!');
+                return;
+            }
+            
+            currentImageData = new ImageData(
+                new Uint8ClampedArray(originalImageData.data),
+                originalWidth,
+                originalHeight
+            );
+            
+            const processedCanvas = document.getElementById('processedCanvas');
+            const processedCtx = processedCanvas.getContext('2d');
+            processedCanvas.width = originalWidth;
+            processedCanvas.height = originalHeight;
+            processedCtx.putImageData(currentImageData, 0, 0);
+            
+            document.querySelector('.image-box:last-child .image-status').textContent = 
+                'Reset to original image';
+        }
+
+        function downloadImage() {
+            if (!currentImageData) {
+                alert('No image to download!');
+                return;
+            }
+            
+            const canvas = document.getElementById('processedCanvas');
+            const link = document.createElement('a');
+            link.download = 'encrypted_image.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        document.getElementById('key').addEventListener('input', function() {
+            let val = parseInt(this.value);
+            if (val > 255) this.value = 255;
+            if (val < 1) this.value = 1;
+        });
+    </script>
+</body>
+</html>
